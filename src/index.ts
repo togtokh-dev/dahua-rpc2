@@ -1,5 +1,6 @@
 import axios, { AxiosInstance } from "axios";
 import { createHash } from "crypto";
+import { RecordUpdater } from "./record-updater";
 
 export class DahuaRpc {
   private host: string;
@@ -15,13 +16,11 @@ export class DahuaRpc {
     this.password = password;
     this.sessionId = null;
     this.id = 0;
-    // Create Axios instance with the base URL
     this.client = axios.create({
       baseURL: `http://${host}`,
     });
   }
 
-  // Utility function to send RPC requests to the device
   private async request(
     method: string,
     params: any = null,
@@ -29,27 +28,22 @@ export class DahuaRpc {
     extra: any = null,
     url: string | null = null
   ): Promise<any> {
-    this.id += 1; // Increment the request ID
+    this.id += 1;
     const data: any = { method, id: this.id };
-
-    if (params) data["params"] = params; // Add parameters if present
-    if (objectId) data["object"] = objectId; // Include object ID if provided
-    if (extra) Object.assign(data, extra); // Merge any extra data into the request
-    if (this.sessionId) data["session"] = this.sessionId; // Add session ID if available
-
-    // Default URL for RPC requests if not provided
+    if (params) data["params"] = params;
+    if (objectId) data["object"] = objectId;
+    if (extra) Object.assign(data, extra);
+    if (this.sessionId) data["session"] = this.sessionId;
     if (!url) url = `http://${this.host}/RPC2`;
 
-    console.log(data); // Debug log the request
     try {
-      const response = await this.client.post(url, data); // Send POST request
+      const response = await this.client.post(url, data);
       return response.data;
     } catch (error) {
-      throw new Error(`Request to ${url} failed: ${error.message}`); // Throw error with detailed message
+      throw new Error(`Request to ${url} failed: ${error.message}`);
     }
   }
 
-  // Login function to authenticate with the device
   public async login(): Promise<void> {
     const url = `http://${this.host}/RPC2_Login`;
     const method = "global.login";
@@ -65,7 +59,6 @@ export class DahuaRpc {
       const realm = response.params.realm;
       const random = response.params.random;
 
-      // MD5 hash for password
       const pwdPhrase = `${this.username}:${realm}:${this.password}`;
       const pwdHash = createHash("md5")
         .update(pwdPhrase)
@@ -78,7 +71,6 @@ export class DahuaRpc {
         .digest("hex")
         .toUpperCase();
 
-      // Login with hashed password
       const loginParams = {
         userName: this.username,
         password: passHash,
@@ -95,42 +87,21 @@ export class DahuaRpc {
         url
       );
       this.sessionId = loginResponse.session;
+      this.id = 0;
       if (!loginResponse.result) {
         throw new Error(`Login failed: ${JSON.stringify(loginResponse)}`);
-      } else {
-        console.log("loginResponse", loginResponse);
       }
     } catch (error) {
       throw new Error(`Login request failed: ${error.message}`);
     }
   }
 
-  // Method to retrieve product definition
-  public async getProductDefinition(): Promise<void> {
-    const method = "magicBox.getProductDefinition";
-    const params = { name: "Traffic" };
-
-    try {
-      const response = await this.request(method, params);
-
-      if (!response.result) {
-        throw new Error(
-          `Failed to get product definition: ${JSON.stringify(response)}`
-        );
-      }
-    } catch (error) {
-      throw new Error(`Error in getProductDefinition: ${error.message}`);
-    }
-  }
-
-  // Keep alive method to maintain the session
   public async keepAlive(): Promise<boolean> {
     const params = { timeout: 300, active: false };
     const method = "global.keepAlive";
 
     try {
       const response = await this.request(method, params);
-
       if (!response.result) {
         throw new Error(`Failed to keep alive: ${JSON.stringify(response)}`);
       }
@@ -140,69 +111,11 @@ export class DahuaRpc {
     }
   }
 
-  // Method to retrieve traffic information
-  public async getTrafficInfo(): Promise<any> {
-    const method = "RecordFinder.factory.create";
-    const params = { name: "TrafficSnapEventInfo" };
-
-    try {
-      const response = await this.request(method, params);
-
-      if (!response.result) {
-        throw new Error(
-          `Failed to get traffic info: ${JSON.stringify(response)}`
-        );
-      }
-      return response.result;
-    } catch (error) {
-      throw new Error(`Error in getTrafficInfo: ${error.message}`);
-    }
-  }
-
-  // Start searching for traffic events
-  public async startFind(objectId: any): Promise<void> {
-    const method = "RecordFinder.startFind";
-    const params = {
-      condition: {
-        Time: ["<>", 1558925818, 1559012218],
-      },
-    };
-
-    try {
-      const response = await this.request(method, params, objectId);
-
-      if (!response.result) {
-        throw new Error(`Failed to start find: ${JSON.stringify(response)}`);
-      }
-    } catch (error) {
-      throw new Error(`Error in startFind: ${error.message}`);
-    }
-  }
-
-  // Perform search for traffic events
-  public async doFind(objectId: any): Promise<any> {
-    const method = "RecordFinder.doFind";
-    const params = { count: 50000 };
-
-    try {
-      const response = await this.request(method, params, objectId);
-
-      if (!response.result) {
-        throw new Error(`Failed to perform find: ${JSON.stringify(response)}`);
-      }
-      return response;
-    } catch (error) {
-      throw new Error(`Error in doFind: ${error.message}`);
-    }
-  }
-
-  // Set configuration on the device
   public async setConfig(params: any): Promise<void> {
     const method = "configManager.setConfig";
 
     try {
       const response = await this.request(method, params);
-
       if (!response.result) {
         throw new Error(`Failed to set config: ${JSON.stringify(response)}`);
       }
@@ -211,7 +124,6 @@ export class DahuaRpc {
     }
   }
 
-  // Reboot the device
   public async reboot(): Promise<void> {
     const method = "magicBox.factory.instance";
 
@@ -230,58 +142,12 @@ export class DahuaRpc {
     }
   }
 
-  // Method to get the current time from the device
-  public async getCurrentTime(): Promise<string> {
-    const method = "global.getCurrentTime";
-
-    try {
-      const response = await this.request(method);
-
-      if (!response.result) {
-        throw new Error(
-          `Failed to get current time: ${JSON.stringify(response)}`
-        );
-      }
-      return response.params.time;
-    } catch (error) {
-      throw new Error(`Error in getCurrentTime: ${error.message}`);
-    }
-  }
-
-  // Synchronize time with NTP server
-  public async ntpSync(
-    address: string,
-    port: number,
-    timeZone: string
-  ): Promise<void> {
-    const method = "netApp.factory.instance";
-
-    try {
-      const response = await this.request(method);
-      const objectId = response.result;
-
-      const syncMethod = "netApp.adjustTimeWithNTP";
-      const params = { Address: address, Port: port, TimeZone: timeZone };
-      const syncResponse = await this.request(syncMethod, params, objectId);
-
-      if (!syncResponse.result) {
-        throw new Error(
-          `Failed to synchronize with NTP: ${JSON.stringify(syncResponse)}`
-        );
-      }
-    } catch (error) {
-      throw new Error(`Error in ntpSync: ${error.message}`);
-    }
-  }
-
-  // Set display mode on the screen
   public async setScreenDisplay(text: string): Promise<void> {
     const method = "trafficParking.setScreenDisplay";
     const params = { Custom: text };
 
     try {
       const response = await this.request(method, params);
-
       if (!response.result) {
         throw new Error(
           `Failed to set screen display: ${JSON.stringify(response)}`
@@ -292,14 +158,12 @@ export class DahuaRpc {
     }
   }
 
-  // Set voice broadcast message
   public async setVoiceBroadcast(text: string): Promise<void> {
     const method = "trafficParking.setVoiceBroadcast";
     const params = { Custom: text };
 
     try {
       const response = await this.request(method, params);
-
       if (!response.result) {
         throw new Error(
           `Failed to set voice broadcast: ${JSON.stringify(response)}`
@@ -310,14 +174,12 @@ export class DahuaRpc {
     }
   }
 
-  // Test the parking space light
   public async testSpaceLight(): Promise<void> {
     const method = "trafficParking.testSpaceLight";
     const params = { LightNo: 1, Color: "Red", State: 2 };
 
     try {
       const response = await this.request(method, params);
-
       if (!response.result) {
         throw new Error(
           `Failed to test space light: ${JSON.stringify(response)}`
@@ -328,7 +190,6 @@ export class DahuaRpc {
     }
   }
 
-  // Open the strobe for traffic management
   public async openStrobe(
     openType: string,
     plateNumber?: string
@@ -343,7 +204,6 @@ export class DahuaRpc {
 
     try {
       const response = await this.request(method, params);
-
       if (!response.result) {
         throw new Error(`Failed to open strobe: ${JSON.stringify(response)}`);
       }
@@ -352,18 +212,20 @@ export class DahuaRpc {
     }
   }
 
-  // Close the strobe
   public async closeStrobe(): Promise<void> {
     const method = "trafficSnap.closeStrobe";
 
     try {
       const response = await this.request(method);
-
       if (!response.result) {
         throw new Error(`Failed to close strobe: ${JSON.stringify(response)}`);
       }
     } catch (error) {
       throw new Error(`Error in closeStrobe: ${error.message}`);
     }
+  }
+
+  public RecordUpdater() {
+    return RecordUpdater(this.request.bind(this));
   }
 }

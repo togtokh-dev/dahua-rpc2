@@ -1,6 +1,6 @@
 {
   "name": "dahua-rpc2",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Dahua RPC Client Library",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

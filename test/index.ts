@@ -2,19 +2,18 @@ import { DahuaRpc } from "../src";
 
 (async () => {
   const password = "loginUser1";
-  const dahuaRpc = new DahuaRpc("192.168.1.108", "admin", password);
-
+  const dahua = new DahuaRpc("192.168.1.108", "admin", password);
+  const list: DahuaRpc[] = []; // Correct type for DahuaRpc instances
+  list.push(dahua);
   try {
+    const dahuaRpc = list[0];
     // Login to the Dahua device
     await dahuaRpc.login();
-
     // Get current traffic info
-    const trafficInfo = await dahuaRpc.getTrafficInfo();
-    console.log("Traffic Information:", trafficInfo);
-
-    // Get current device time
-    const currentTime = await dahuaRpc.getCurrentTime();
-    console.log("Device Current Time:", currentTime);
+    const keepAlive = await dahuaRpc.keepAlive();
+    console.log("keepAlive:", keepAlive);
+    const instance = await dahuaRpc.RecordUpdater().instance("TrafficRedList");
+    console.log(instance);
   } catch (error) {
     console.error("Error:", error.message);
   }
