@@ -9,6 +9,7 @@ export class DahuaRpc {
   private sessionId: string | null;
   private id: number;
   private client: AxiosInstance;
+  public idName: string;
 
   constructor(host: string, username: string, password: string) {
     this.host = host;
