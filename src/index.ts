@@ -1,6 +1,7 @@
 import axios, { AxiosInstance } from "axios";
 import { createHash } from "crypto";
 import { RecordUpdater } from "./record-updater";
+import { RecordFinder } from "./record-finder";
 
 export class DahuaRpc {
   private host: string;
@@ -38,6 +39,7 @@ export class DahuaRpc {
     if (!url) url = `http://${this.host}/RPC2`;
 
     try {
+      console.log(url, data);
       const response = await this.client.post(url, data);
       return response.data;
     } catch (error) {
@@ -228,5 +230,8 @@ export class DahuaRpc {
 
   public RecordUpdater() {
     return RecordUpdater(this.request.bind(this));
+  }
+  public RecordFinder() {
+    return RecordFinder(this.request.bind(this));
   }
 }
