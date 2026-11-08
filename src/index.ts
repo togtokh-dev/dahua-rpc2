@@ -39,7 +39,6 @@ export class DahuaRpc {
     if (!url) url = `http://${this.host}/RPC2`;
 
     try {
-      console.log(url, data);
       const response = await this.client.post(url, data);
       return response.data;
     } catch (error) {

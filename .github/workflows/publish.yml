@@ -1,0 +1,63 @@
+name: Publish to npm
+
+# Auto-publishes dahua-rpc2 to npm on push to main, via npm Trusted Publishing (OIDC).
+# No NPM_TOKEN secret needed. Publishes ONLY when package.json "version" is not yet
+# on npm, so bump the version to release — a push without a bump is a safe no-op.
+#
+# Matching npm Trusted Publisher settings (npmjs.com -> package -> Settings):
+#   Publisher:            GitHub Actions
+#   Organization or user: togtokh-dev
+#   Repository:           dahua-rpc2
+#   Workflow filename:    publish.yml
+#   Environment name:     (leave blank)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # REQUIRED for npm OIDC trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing (OIDC) needs npm >= 11.5.1
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
+      - name: Check if this version is already on npm
+        id: check
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "$NAME@$VERSION" version > /dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$NAME@$VERSION already on npm — skipping."
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$NAME@$VERSION is new — publishing."
+          fi
+
+      - name: Install dependencies
+        if: steps.check.outputs.publish == 'true'
+        run: npm install
+
+      - name: Build
+        if: steps.check.outputs.publish == 'true'
+        run: npm run build
+
+      - name: Publish
+        if: steps.check.outputs.publish == 'true'
+        run: npm publish --provenance --access public

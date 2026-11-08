@@ -1,7 +1,7 @@
 {
   "name": "dahua-rpc2",
-  "version": "1.0.3",
-  "description": "Dahua RPC Client Library",
+  "version": "1.0.4",
+  "description": "Node.js/TypeScript client for Dahua devices over the RPC2 protocol: login, keep-alive, parking & traffic control (barrier/strobe, screen, voice), and record management.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [

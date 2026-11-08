@@ -1,78 +1,136 @@
-# Dahua RPC Client Library
+# dahua-rpc2
 
-This is a Node.js library to interact with Dahua devices using the RPC protocol. The library enables communication with Dahua devices such as cameras and parking systems by handling authentication and providing utility methods for device management.
+Node.js / TypeScript client for [Dahua](https://www.dahuasecurity.com/) devices (IP cameras, ANPR / parking and traffic units) over the device **RPC2** protocol. It handles the `global.login` digest-authentication handshake, session keep-alive, common device actions (reboot, screen/voice, parking strobe), and the `RecordFinder` / `RecordUpdater` APIs used to query and manage on-device record sets such as traffic allow-lists.
 
 ## Installation
-
-To install the package, run:
 
 ```bash
 npm install dahua-rpc2
 ```
 
-## Usage
-
-Here is a basic example demonstrating how to use the library to log in and retrieve traffic information.
-
-### Example
+## Quick start
 
 ```typescript
 import { DahuaRpc } from "dahua-rpc2";
 
 (async () => {
-  const dahuaRpc = new DahuaRpc("192.168.1.100", "admin", "your_password");
+  const dahua = new DahuaRpc("192.168.1.108", "admin", "YOUR_PASSWORD");
 
   try {
-    // Login to the Dahua device
-    await dahuaRpc.login();
+    await dahua.login();                 // digest handshake, stores a session id
+    await dahua.keepAlive();             // keep the session alive
 
-    // Get current traffic info
-    const trafficInfo = await dahuaRpc.getTrafficInfo();
-    console.log("Traffic Information:", trafficInfo);
-
-    // Get current device time
-    const currentTime = await dahuaRpc.getCurrentTime();
-    console.log("Device Current Time:", currentTime);
+    await dahua.setScreenDisplay("Welcome");
+    await dahua.setVoiceBroadcast("Gate opening");
+    await dahua.openStrobe("Normal");    // raise the barrier / strobe
+    await dahua.closeStrobe();
   } catch (error) {
-    console.error("Error:", error.message);
+    console.error("Error:", (error as Error).message);
   }
 })();
 ```
 
-### Available Methods
+JavaScript (CommonJS):
 
-- `login()`: Logs into the device and retrieves a session ID.
-- `getProductDefinition()`: Fetches product definitions from the device.
-- `keepAlive()`: Sends a keep-alive request to the device to maintain the session.
-- `getTrafficInfo()`: Retrieves traffic event information.
-- `startFind(objectId)`: Starts a search for traffic events.
-- `doFind(objectId)`: Performs a search for traffic events.
-- `setConfig(params)`: Sets configuration on the device.
-- `reboot()`: Reboots the device.
-- `getCurrentTime()`: Gets the current time from the device.
-- `ntpSync(address, port, timeZone)`: Synchronizes time with the NTP server.
-- `setScreenDisplay(text)`: Sets display text on a connected screen.
-- `setVoiceBroadcast(text)`: Sets a voice broadcast message.
-- `testSpaceLight()`: Tests the parking space light system.
-- `openStrobe(openType, plateNumber)`: Opens the strobe for traffic management.
-- `closeStrobe()`: Closes the strobe.
+```js
+const { DahuaRpc } = require("dahua-rpc2");
 
-### Error Handling
+const dahua = new DahuaRpc("192.168.1.108", "admin", "YOUR_PASSWORD");
+dahua.login().then(() => dahua.keepAlive());
+```
 
-Each method throws errors if the request fails, providing detailed information about the failure. Use `try/catch` blocks to handle these errors.
+## Constructor
+
+```typescript
+new DahuaRpc(host: string, username: string, password: string)
+```
+
+- `host` — device IP or hostname (requests are sent to `http://<host>/RPC2`).
+- `username` / `password` — device credentials.
+
+The instance also exposes a public `idName` field you can set to tag/identify an instance in your own collections:
+
+```typescript
+dahua.idName = "gate-01";
+```
+
+## DahuaRpc methods
+
+All methods are async and throw an `Error` (with a descriptive message) when the device returns `result: false` or the request fails.
+
+| Method | Description |
+| --- | --- |
+| `login()` | Performs the `global.login` challenge/response handshake and stores the session id. |
+| `keepAlive()` | Sends `global.keepAlive`; resolves to `true` while the session is valid. |
+| `setConfig(params)` | Calls `configManager.setConfig` with the given config object. |
+| `reboot()` | Reboots the device (`magicBox.reboot`). |
+| `setScreenDisplay(text)` | Sets custom text on the device screen (`trafficParking.setScreenDisplay`). |
+| `setVoiceBroadcast(text)` | Sets a custom voice-broadcast message (`trafficParking.setVoiceBroadcast`). |
+| `testSpaceLight()` | Tests the parking space light (`trafficParking.testSpaceLight`). |
+| `openStrobe(openType, plateNumber?)` | Opens the barrier/strobe (`trafficSnap.openStrobe`). |
+| `closeStrobe()` | Closes the barrier/strobe (`trafficSnap.closeStrobe`). |
+| `RecordUpdater()` | Returns the record-updater helper (see below). |
+| `RecordFinder()` | Returns the record-finder helper (see below). |
+
+## RecordFinder
+
+`dahua.RecordFinder()` returns a helper for querying on-device record tables (e.g. `TrafficRedList`). Typical flow: `create` → `startFind` → `doFind` → `destroy`.
+
+```typescript
+const finder = dahua.RecordFinder();
+const object = await finder.create("TrafficRedList"); // object/factory handle
+await finder.startFind({}, object);
+const result = await finder.doFind(100, object);
+console.log(result.params.found, result.params.records);
+await finder.destroy(object);
+```
+
+| Method | Signature |
+| --- | --- |
+| `create` | `(name) => Promise<string>` |
+| `startFind` | `(condition, object) => Promise<any>` |
+| `doFind` | `(count, object) => Promise<RecordFinderResponse>` |
+| `doSeekFind` | `(offset, count, object) => Promise<any>` |
+| `stopFind` | `(object) => Promise<any>` |
+| `getQuerySize` | `(object) => Promise<any>` |
+| `destroy` | `(object) => Promise<void>` |
+
+`RecordFinderResponse` and the `Record` shape (plate number/color, card id, park no, times, etc.) are exported from the package types.
+
+## RecordUpdater
+
+`dahua.RecordUpdater()` returns a helper for creating, inserting, updating, removing and importing/exporting records.
+
+```typescript
+const updater = dahua.RecordUpdater();
+const instance = await updater.instance("TrafficRedList");
+await updater.insert({ PlateNumber: "1234ABC" }, instance);
+```
+
+| Method | Signature |
+| --- | --- |
+| `instance` | `(name) => Promise<{ id: number; result: number; session: string }>` |
+| `insert` | `(record, object) => Promise<void>` |
+| `update` | `(recno, record, object) => Promise<void>` |
+| `remove` | `(recno, object) => Promise<void>` |
+| `clear` | `(object) => Promise<void>` |
+| `imports` | `(records, object) => Promise<void>` |
+| `importFile` / `exportFile` / `exportAsyncFile` | `(filename, format, code, object) => Promise<void>` |
+| `getFileImportState` / `getFileImportData` / `getFileExportState` | `(object) => Promise<void>` |
+| `getSchema` | `(object) => Promise<void>` |
+
+## Error handling
+
+Every method throws on failure, so wrap calls in `try/catch`:
 
 ```typescript
 try {
-  await dahuaRpc.login();
+  await dahua.login();
 } catch (error) {
-  console.error("Login failed:", error.message);
+  console.error("Login failed:", (error as Error).message);
 }
 ```
 
-### Contributions
+## License
 
-Feel free to contribute by opening issues or submitting pull requests to improve the library.
-
-### License
-
-MIT License.
+ISC
